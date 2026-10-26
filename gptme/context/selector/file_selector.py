@@ -24,14 +24,24 @@ def get_workspace_files(workspace: Path) -> list[Path]:
     # Try git first
     try:
         p = subprocess.run(
-            [GIT_CMD, "ls-files"],
+            [GIT_CMD, "ls-files", "-z"],
             cwd=workspace,
             capture_output=True,
-            text=True,
             check=True,
             timeout=30,
         )
-        files = [workspace / f for f in p.stdout.splitlines()]
+        # Parse raw paths rather than Git's display quoting. Decode separately
+        # so a non-UTF-8 filename cannot break discovery of the other files.
+        for raw_path in p.stdout.split(b"\0"):
+            if not raw_path:
+                continue
+            try:
+                name = raw_path.decode("utf-8")
+            except UnicodeDecodeError:
+                # These names cannot be represented in UTF-8 model prompts.
+                logger.debug("Skipping non-UTF-8 Git path: %r", raw_path)
+                continue
+            files.append(workspace / name)
         # Filter existing files
         files = [f for f in files if f.exists()]
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
