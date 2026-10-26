@@ -89,6 +89,9 @@ def _build_file_tree(workspace: Path, max_paths: int = 500) -> str:
 
     files = get_workspace_files(workspace)
     paths = sorted(str(f.relative_to(workspace)) for f in files)
+    # The scout protocol is line-delimited. A filename containing a line break
+    # must not advertise separate paths, including files that are not tracked.
+    paths = [path for path in paths if path.splitlines() == [path]]
     if len(paths) > max_paths:
         paths = paths[:max_paths]
     return "\n".join(paths)
